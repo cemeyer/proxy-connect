@@ -20,11 +20,14 @@
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  *
  * ---------------------------------------------------------
- * PROJECT:  My Test Program
+ * PROJECT:  proxy-connect
  * AUTHOR:   Shun-ichi GOTO <gotoh@taiyo.co.jp>
  * CREATE:   Wed Jun 21, 2000
- * REVISION: $Revision: 1.96 $
+ * REVISION: 1.97
  * ---------------------------------------------------------
+ */
+#define PRG_VERSION "1.97"
+/**
  *
  * Getting Source
  * ==============
@@ -253,12 +256,6 @@
 #define ECONNRESET WSAECONNRESET
 #endif /* _WI32 */
 
-
-
-#ifndef LINT
-static char *vcid = "$Id: connect.c,v 1.96 2006/05/02 15:24:13 gotoh Exp $";
-#endif
-
 /* Microsoft Visual C/C++ has _snprintf() and _vsnprintf() */
 #ifdef _MSC_VER
 #define snprintf _snprintf
@@ -270,6 +267,8 @@ static char *vcid = "$Id: connect.c,v 1.96 2006/05/02 15:24:13 gotoh Exp $";
 #define _kbhit kbhit
 #define _setmode setmode
 #endif
+
+#define NELEM(arr) (sizeof(arr)/sizeof((arr)[0]))
 
 /* help message.
    Win32 environment does not support -R option (vc and cygwin)
@@ -294,8 +293,6 @@ static char *usage = "usage: %s [-dnhst45N] [-p local-port]"
 /* name of this program */
 char *progname = NULL;
 char *progdesc = "connect --- simple relaying command via proxy.";
-char *rcs_revstr = "$Revision: 1.96 $";
-char *revstr = NULL;
 
 /* set of character for strspn() */
 const char *digits    = "0123456789";
@@ -546,7 +543,7 @@ char *
 expand_host_and_port (const char *fmt, const char *host, int port)
 {
     const char *src;
-    char *buf, *dst, *ptr;
+    char *buf, *dst;
     size_t len = strlen(fmt) + strlen(host) + 20;
     buf = xmalloc (len);
     dst = buf;
@@ -1007,6 +1004,7 @@ int intr_flag = 0;
 void
 intr_handler(int sig)
 {
+    (void)sig;
     intr_flag = 1;
 }
 
@@ -1058,6 +1056,7 @@ int
 tty_readpass( const char *prompt, char *buf, size_t size )
 {
     int tty, ret = 0;
+    ssize_t w;
 
     tty = open(TTY_NAME, O_RDWR);
     if ( tty < 0 ) {
@@ -1066,12 +1065,16 @@ tty_readpass( const char *prompt, char *buf, size_t size )
     }
     if ( size <= 0 )
         return -1;                              /* no room */
-    write(tty, prompt, strlen(prompt));
+    w = write(tty, prompt, strlen(prompt));
+    if ( w < 0 || (size_t)w != strlen(prompt) )
+        fatal("write truncated, aborting\n");
     buf[0] = '\0';
     tty_change_echo(tty, 0);                    /* disable echo */
     ret = read(tty,buf, size-1);
     tty_change_echo(tty, 1);                    /* restore */
-    write(tty, "\n", 1);                        /* new line */
+    w = write(tty, "\n", 1);                    /* new line */
+    if ( w != 1 )
+        fatal("write truncated, aborting\n");
     close(tty);
     if ( strchr(buf,'\n') == NULL  )
         return -1;
@@ -1361,25 +1364,6 @@ resolve_port( const char *service )
     return (u_short)port;
 }
 
-void
-make_revstr(void)
-{
-    char *ptr;
-    size_t len;
-    ptr = strstr(rcs_revstr, ": ");
-    if (!ptr) {
-        revstr = strdup("unknown");
-        return;
-    }
-    ptr += 2;
-    len = strspn(ptr, dotdigits);
-    if (0 < len) {
-        revstr = xmalloc(len+1);
-        memcpy(revstr, ptr, len);
-        revstr[len] = '\0';
-    }
-}
-
 int
 getarg( int argc, char **argv )
 {
@@ -1507,7 +1491,7 @@ getarg( int argc, char **argv )
                 break;
 
             case 'V':                           /* print version */
-                fprintf(stderr, "%s\nVersion %s\n", progdesc, revstr);
+                fprintf(stderr, "%s\nVersion " PRG_VERSION "\n", progdesc);
                 exit(0);
 
             case 'd':                           /* debug mode */
@@ -1535,7 +1519,7 @@ getarg( int argc, char **argv )
 
     /* check destination HOST (MUST) */
     if ( argc == 0  ) {
-        fprintf(stderr, "%s\nVersion %s\n", progdesc, revstr);
+        fprintf(stderr, "%s\nVersion " PRG_VERSION "\n", progdesc);
         fprintf(stderr, usage, progname);
         exit(0);
     }
@@ -1921,7 +1905,7 @@ readpass( const char* prompt, ...)
 static int
 socks5_do_auth_userpass( int s )
 {
-    unsigned char buf[1024], *ptr;
+    char buf[1024], *ptr;
     char *pass = NULL;
     int len;
 
@@ -2014,7 +1998,7 @@ socks5_auth_parse_1(char *start, char *end){
 }
 
 int
-socks5_auth_parse(char *start, unsigned char *auth_list, int max_auth){
+socks5_auth_parse(char *start, char *auth_list, int max_auth){
     char *end;
     int i = 0;
     while ( i < max_auth ) {
@@ -2041,9 +2025,8 @@ socks5_auth_parse(char *start, unsigned char *auth_list, int max_auth){
 int
 begin_socks5_relay( SOCKET s )
 {
-    unsigned char buf[256], *ptr, *env = socks5_auth;
-    unsigned char n_auth = 0; unsigned char auth_list[10], auth_method;
-    int len, auth_result, i;
+    char buf[256], *ptr, *env = socks5_auth, auth_method, auth_list[10];
+    int len, auth_result, i, n_auth = 0;
 
     debug( "begin_socks_relay()\n");
 
@@ -2072,7 +2055,7 @@ begin_socks5_relay( SOCKET s )
     atomic_out( s, buf, ptr-buf );              /* send requst */
     atomic_in( s, buf, 2 );                     /* recv response */
     if ( (buf[0] != 5) ||                       /* ver5 response */
-         (buf[1] == 0xFF) ) {                   /* check auth method */
+         (buf[1] == (char)0xFF) ) {             /* check auth method */
         error("No auth method accepted.\n");
         return -1;
     }
@@ -2080,7 +2063,7 @@ begin_socks5_relay( SOCKET s )
 
     debug("auth method: %s\n", socks5_getauthname(auth_method));
 
-    switch ( auth_method ) {
+    switch ( (unsigned char)auth_method ) {
     case SOCKS5_AUTH_REJECT:
         error("No acceptable authentication method\n");
         return -1;                              /* fail */
@@ -2178,7 +2161,7 @@ begin_socks5_relay( SOCKET s )
 int
 begin_socks4_relay( SOCKET s )
 {
-    unsigned char buf[256], *ptr;
+    char buf[256], *ptr;
 
     debug( "begin_socks_relay()\n");
 
@@ -2246,23 +2229,20 @@ const char *base64_table =
 char *
 make_base64_string(const char *str)
 {
-    static char *buf;
-    unsigned char *src;
-    char *dst;
+    char *buf, *dst;
     int bits, data, src_len, dst_len;
+
     /* make base64 string */
     src_len = strlen(str);
     dst_len = (src_len+2)/3*4;
-    buf = xmalloc(dst_len+1);
+    dst = buf = xmalloc(dst_len+1);
     bits = data = 0;
-    src = (unsigned char *)str;
-    dst = (unsigned char *)buf;
     while ( dst_len-- ) {
         if ( bits < 6 ) {
-            data = (data << 8) | *src;
+            data = (data << 8) | *str;
             bits += 8;
-            if ( *src != 0 )
-                src++;
+            if ( *str != 0 )
+                str++;
         }
         *dst++ = base64_table[0x3F & (data >> (bits-6))];
         bits -= 6;
@@ -2431,14 +2411,11 @@ begin_http_relay( SOCKET s )
 int
 begin_telnet_relay( SOCKET s )
 {
-    char buf[1024];
-    char *cmd;
-    char *good_phrase = "connected to";
-    char *bad_phrase_list[] = {
-	" failed", " refused", " rejected", " closed"
-    };
-    char sep = ' ';
-    int i;
+    char buf[1024], sep = ' ', *cmd, *good_phrase = "connected to",
+         *bad_phrase_list[] = {
+                 " failed", " refused", " rejected", " closed"
+         };
+    unsigned i;
 
     debug("begin_telnet_relay()\n");
 
@@ -2446,9 +2423,9 @@ begin_telnet_relay( SOCKET s )
     debug("good phrase: '%s'\n", good_phrase);
     debug("bad phrases");
     sep = ':';
-    for (i=0; i< (sizeof(bad_phrase_list) / sizeof(char*)); i++) {
-	debug_("%c '%s'", sep, bad_phrase_list[i]);
-	sep = ',';
+    for (i = 0; i < NELEM(bad_phrase_list); i++) {
+        debug_("%c '%s'", sep, bad_phrase_list[i]);
+        sep = ',';
     }
     debug_("\n");
 
@@ -2458,7 +2435,7 @@ begin_telnet_relay( SOCKET s )
     
     /* Sorry, we send request string now without waiting a prompt. */
     if (sendf(s, "%s\r\n", cmd) < 0) {
-	free(cmd);
+        free(cmd);
         return START_ERROR;
     }
     free(cmd);
@@ -2694,7 +2671,7 @@ accept_connection (u_short port)
     int connection;
     struct sockaddr_in name;
     struct sockaddr client;
-    int socklen;
+    socklen_t socklen;
     fd_set ifds;
     int nfds;
     int sockopt;
@@ -2780,9 +2757,8 @@ main( int argc, char **argv )
 #endif /* _WIN32 */
 
     /* initialization */
-    make_revstr();
     getarg( argc, argv );
-    debug("Program is $Revision: 1.96 $\n");
+    debug("Program version is " PRG_VERSION "\n");
 
     /* Open local_in and local_out if forwarding a port */
     if ( local_type == LOCAL_SOCKET ) {
