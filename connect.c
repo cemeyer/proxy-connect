@@ -3,6 +3,7 @@
  *
  * Copyright (c) 2000-2004 Shun-ichi Goto
  * Copyright (c) 2002, J. Grant (English Corrections)
+ * Copyright (C) 2013 Conrad Meyer (cleanups, add -N, ...)
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -29,7 +30,7 @@
  * ==============
  *
  *   Recent version of 'connect.c' is available from
- *     http://www.taiyo.co.jp/~gotoh/ssh/connect.c
+ *     http://www.taiyo.co.jp/~gotoh/ssh/connect.c (Dead link now. -CEM)
  *
  *   Related tool, ssh-askpass.exe (alternative ssh-askpass on UNIX)
  *   is available:
@@ -65,7 +66,7 @@
  *   You can specify proxy method in an environment variable or in a
  *   command line option.
  *
- *   usage:  connect [-dnhst45] [-R resolve] [-p local-port] [-w sec]
+ *   usage:  connect [-dnhst45N] [-R resolve] [-p local-port] [-w sec]
  *                   [-H [user@]proxy-server[:port]]
  *                   [-S [user@]socks-server[:port]]
  *                   [-T proxy-server[:port]]
@@ -107,6 +108,9 @@
  *
  *   The '-w' option specifys timeout seconds for making connection with
  *   TARGET host.
+ *
+ *   The '-N' option selects for no authentication when it is available.
+ *   Otherwise, connect.c defaults to use authentication.
  *
  *   The '-d' option is used for debug. If you fail to connect, use this
  *   and check request to and response from server.
@@ -271,7 +275,7 @@ static char *vcid = "$Id: connect.c,v 1.96 2006/05/02 15:24:13 gotoh Exp $";
    Win32 environment does not support -R option (vc and cygwin)
    Win32 native compilers does not support -w option, yet (vc)
 */
-static char *usage = "usage: %s [-dnhst45] [-p local-port]"
+static char *usage = "usage: %s [-dnhst45N] [-p local-port]"
 #ifdef _WIN32
 #ifdef __CYGWIN32__
 "[-w timeout] \n"                               /* cygwin cannot -R */
@@ -299,6 +303,7 @@ const char *dotdigits = "0123456789.";
 
 /* options */
 int f_debug = 0;
+int f_noauth = 0;
 
 /* report flag to hide secure information */
 int f_report = 1;
@@ -1509,6 +1514,10 @@ getarg( int argc, char **argv )
                 f_debug++;
                 break;
 
+            case 'N':
+                f_noauth = 1;
+                break;
+
             default:
                 error("unknown option '-%c'\n", *ptr);
                 err++;
@@ -2047,8 +2056,10 @@ begin_socks5_relay( SOCKET s )
     if ( env == NULL ) {
         /* add no-auth authentication */
         auth_list[n_auth++] = SOCKS5_AUTH_NOAUTH;
-        /* add user/pass authentication */
-        auth_list[n_auth++] = SOCKS5_AUTH_USERPASS;
+        if ( !f_noauth ) {
+            /* add user/pass authentication */
+            auth_list[n_auth++] = SOCKS5_AUTH_USERPASS;
+        }
     } else {
         n_auth = socks5_auth_parse(env, auth_list, 10);
     }
