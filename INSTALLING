@@ -20,4 +20,3 @@ Everything below is untested at this point -CEM.
      $ gcc connect.c -o connect -lresolv
    or
      $ gcc connect.c -o connect -DBIND_8_COMPAT=1
-
