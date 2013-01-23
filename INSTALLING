@@ -1,0 +1,23 @@
+How To Compile
+==============
+
+ On UNIX environment:
+     $ make
+
+Everything below is untested at this point -CEM.
+
+ On SOLARIS:
+     $ gcc -o connect -lresolv -lsocket -lnsl connect.c
+
+ on Win32 environment:
+     $ cl connect.c wsock32.lib advapi32.lib
+   or
+     $ bcc32 connect.c wsock32.lib advapi32.lib
+   or
+     $ gcc connect.c -o connect
+
+ on Mac OS X environment:
+     $ gcc connect.c -o connect -lresolv
+   or
+     $ gcc connect.c -o connect -DBIND_8_COMPAT=1
+

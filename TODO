@@ -1,0 +1,5 @@
+- getopt()-ize
+- Clean the code up, a lot:
+  - base64 can probably call out to sasl or some win32 lib or openssl instead of rolling our own
+  - replace ints with bool where appropriate
+  - this should probably be like 800 lines, not >2000, clean!
