@@ -525,7 +525,7 @@ xmalloc (size_t size)
 {
     void *ret = malloc(size);
     if (ret == NULL)
-	fatal("Cannot allocate memory: %d bytes.\n", size);
+        fatal("Cannot allocate memory: %d bytes.\n", size);
     return ret;
 }
 
@@ -550,44 +550,44 @@ expand_host_and_port (const char *fmt, const char *host, int port)
     src = fmt;
     
     while (*src) {
-	if (*src == '%') {
-	    switch (src[1]) {
-	    case 'h':
-		strcpy (dst, host);
-		src += 2;
-		break;
-	    case 'p':
-		snprintf (dst, len, "%d", port);
-		src += 2;
-		break;
-	    default:
-		src ++;
-		break;
-	    }
-	    dst = buf + strlen (buf);
-	} else if (*src == '\\') {
-	    switch (src[1]) {
-	    case 'r':				/* CR */
-		*dst++ = '\r';
-		src += 2;
-		break;
-	    case 'n':				/* LF */
-		*dst++ = '\n';
-		src += 2;
-		break;
-	    case 't':				/* TAB */
-		*dst++ = '\t';
-		src += 2;
-		break;
-	    default:
-		src ++;
-		break;
-	    }
-	} else {
-	    /* usual */
-	    *dst++ = *src++;
-	}
-	*dst = '\0';
+        if (*src == '%') {
+            switch (src[1]) {
+            case 'h':
+                strcpy (dst, host);
+                src += 2;
+                break;
+            case 'p':
+                snprintf (dst, len, "%d", port);
+                src += 2;
+                break;
+            default:
+                src ++;
+                break;
+            }
+            dst = buf + strlen (buf);
+        } else if (*src == '\\') {
+            switch (src[1]) {
+            case 'r':                           /* CR */
+                *dst++ = '\r';
+                src += 2;
+                break;
+            case 'n':                           /* LF */
+                *dst++ = '\n';
+                src += 2;
+                break;
+            case 't':                           /* TAB */
+                *dst++ = '\t';
+                src += 2;
+                break;
+            default:
+                src ++;
+                break;
+            }
+        } else {
+            /* usual */
+            *dst++ = *src++;
+        }
+        *dst = '\0';
     }
     assert (strlen(buf) < len);
     return buf;
@@ -1714,9 +1714,9 @@ report_text( char *prefix, char *buf )
                 if ( isprint(*buf) ) {
                     *tmp++ = *buf;
                 } else {
-		    int consumed = tmp - work;
+                    int consumed = tmp - work;
                     snprintf( tmp, sizeof(work)-consumed,
-			      "\\x%02X", (unsigned char)*buf);
+                              "\\x%02X", (unsigned char)*buf);
                     tmp += strlen(tmp);
                 }
             }
@@ -1884,7 +1884,7 @@ readpass( const char* prompt, ...)
         /* use ssh-askpass to get password */
         FILE *fp;
         char *askpass = getparam(ENV_SSH_ASKPASS), *cmd;
-	int cmd_size = strlen(askpass) +1 +1 +strlen(buf) +1 +1;
+        int cmd_size = strlen(askpass) +1 +1 +strlen(buf) +1 +1;
         cmd = xmalloc(cmd_size);
         snprintf(cmd, cmd_size, "%s \"%s\"", askpass, buf);
         fp = popen(cmd, "r");
@@ -2323,8 +2323,8 @@ begin_http_relay( SOCKET s )
 
     /* check status */
     if (!strchr(buf, ' ')) {
-	error ("Unexpected http response: '%s'.\n", buf);
-	return START_ERROR;
+        error ("Unexpected http response: '%s'.\n", buf);
+        return START_ERROR;
     }
     result = atoi(strchr(buf,' '));
 
@@ -2446,18 +2446,18 @@ begin_telnet_relay( SOCKET s )
        fail. First checks a good phrase, then checks bad phrases.
        If no match, continue reading line from proxy. */
     while (!line_input(s, buf, sizeof(buf)) && buf[0] != '\0') {
-	downcase(buf);
-	/* first, check good phrase */
+        downcase(buf);
+        /* first, check good phrase */
         if (strstr(buf, good_phrase)) {
-	    debug("good phrase is detected: '%s'\n", good_phrase);
+            debug("good phrase is detected: '%s'\n", good_phrase);
             return START_OK;
         }
-	/* then, check bad phrase */
-	for (i=0; i<(sizeof(bad_phrase_list)/sizeof(char*)); i++) {
-	    if (strstr(buf, bad_phrase_list[i]) != NULL) {
-		debug("bad phrase is detected: '%s'\n", bad_phrase_list[i]);
-		return START_ERROR;
-	    }
+        /* then, check bad phrase */
+        for (i = 0; i < NELEM(bad_phrase_list); i++) {
+            if (strstr(buf, bad_phrase_list[i]) != NULL) {
+                debug("bad phrase is detected: '%s'\n", bad_phrase_list[i]);
+                return START_ERROR;
+            }
         }
     }
     debug("error reading from telnet proxy\n");
